@@ -69,7 +69,7 @@ function DemoContent() {
         </div>
 
         {/* More dummy content below to ensure the button isn't at the absolute bottom */}
-        <div className="h-[100vh] w-full" />
+        <div className="h-screen w-full" />
       </main>
     </div>
   );

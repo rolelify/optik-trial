@@ -77,30 +77,33 @@ export async function POST(req: NextRequest) {
           const isOccludedMobile = capture.mobile.primaryBBox ? await checkOcclusion(url, 'mobile', capture.mobile.primaryBBox) : false;
           const isOccludedDesktop = capture.desktop.primaryBBox ? await checkOcclusion(url, 'desktop', capture.desktop.primaryBBox) : false;
 
-          // UPGRADE: If AI says PASS but Watchdog says OCCLUDED -> FAIL
+          // CASE 1: Gemini found it (FAILED)
+          if (!mobileRes.pass && isOccludedMobile) {
+            mobileRes.issue_detected = 'Gemini 3 Spatial Verdict: primary CTA is occluded. Deterministic check confirmed click is blocked.';
+          } else if (!mobileRes.pass && !isOccludedMobile) {
+            // Gemini flagged it but deterministic check disagreed -> WARN
+            finalStatus = 'warn';
+            mobileRes.issue_detected = 'Gemini 3 Spatial Verdict: Potential occlusion detected (Manual review suggested: Deterministic check disagreed with AI prediction).';
+          }
+
+          if (!desktopRes.pass && isOccludedDesktop) {
+            desktopRes.issue_detected = 'Gemini 3 Spatial Verdict: primary CTA is occluded. Deterministic check confirmed click is blocked.';
+          } else if (!desktopRes.pass && !isOccludedDesktop) {
+            finalStatus = 'warn';
+            desktopRes.issue_detected = 'Gemini 3 Spatial Verdict: Potential occlusion detected (Manual review suggested).';
+          }
+
+          // CASE 2: Watchdog override (AI missed it)
           if (mobileRes.pass && isOccludedMobile) {
             console.log(`[${runId}] Watchdog flagged mobile occlusion AI missed`);
-            finalStatus = 'fail';
-            mobileRes.pass = false;
-            mobileRes.failure_type = 'occluded';
-            mobileRes.issue_detected = 'OptikOps Deterministic Watchdog detected an occlusion that the AI missed. The CTA is covered by another element.';
+            // Label as WARN ("Disputed") per user request
+            finalStatus = 'warn'; 
+            mobileRes.issue_detected = 'Watchdog override (Gemini missed): Deterministic check found blocking element.';
           }
           if (desktopRes.pass && isOccludedDesktop) {
             console.log(`[${runId}] Watchdog flagged desktop occlusion AI missed`);
-            finalStatus = 'fail';
-            desktopRes.pass = false;
-            desktopRes.failure_type = 'occluded';
-            desktopRes.issue_detected = 'OptikOps Deterministic Watchdog detected an occlusion that the AI missed.';
-          }
-
-          // DOWNGRADE: If AI says FAIL (occlusion) but Watchdog says PASS -> WARN
-          if (!mobileRes.pass && !isOccludedMobile && mobileRes.failure_type === 'occluded' && capture.mobile.primaryBBox) {
-            if (finalStatus === 'fail' && desktopRes.pass) finalStatus = 'warn';
-            mobileRes.issue_detected += ' (Manual review suggested: Deterministic check disagreed with AI prediction)';
-          }
-          if (!desktopRes.pass && !isOccludedDesktop && desktopRes.failure_type === 'occluded' && capture.desktop.primaryBBox) {
-            if (finalStatus === 'fail' && mobileRes.pass) finalStatus = 'warn';
-            desktopRes.issue_detected += ' (Manual review suggested: Deterministic check disagreed with AI prediction)';
+            finalStatus = 'warn';
+            desktopRes.issue_detected = 'Watchdog override (Gemini missed): Deterministic check found blocking element.';
           }
         }
 
@@ -118,7 +121,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ runId });
 
-  } catch (err) {
+  } catch {
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

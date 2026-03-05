@@ -102,9 +102,16 @@ export default function RunResults({ params }: { params: Promise<{ id: string }>
           </div>
         </div>
 
-        <div className={`flex items-center gap-3 px-6 py-3 rounded-xl border ${badgeColor} font-bold text-xl uppercase tracking-widest z-10`}>
-          <BadgeIcon className="w-6 h-6" />
-          {run.status}
+        <div className="flex flex-col items-end gap-2 z-10">
+          <div className={`flex items-center gap-3 px-6 py-3 rounded-xl border ${badgeColor} font-bold text-xl uppercase tracking-widest`}>
+            <BadgeIcon className="w-6 h-6" />
+            {run.status}
+          </div>
+          {run.status === 'fail' && (
+            <div className="text-red-400 font-bold text-sm bg-red-500/10 px-3 py-1 rounded-lg border border-red-500/20 animate-pulse">
+              Critical action blocked: primary-cta is not clickable on Mobile.
+            </div>
+          )}
         </div>
         
         {/* Decorative background glow based on status */}
