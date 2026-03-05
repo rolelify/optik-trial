@@ -2,5 +2,6 @@ import { NextResponse } from 'next/server';
 import { getAllRuns } from '@/lib/store';
 
 export async function GET() {
-  return NextResponse.json(getAllRuns());
+  const runs = await getAllRuns();
+  return NextResponse.json(runs);
 }

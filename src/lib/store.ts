@@ -1,53 +1,65 @@
-import fs from 'fs';
-import path from 'path';
+import prisma from './prisma';
 import { RunRecord } from './types';
+import { Prisma } from '@prisma/client';
 
-// In-memory cache
-const _store = new Map<string, RunRecord>();
+// We map our RunRecord domain type to Prisma interactions
 
-const getLogFilePath = () => {
-  const dir = path.join(process.cwd(), '.data');
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-  return path.join(dir, 'runs.jsonl');
-};
-
-// Initialize store from disk if needed
-const initStore = () => {
-  if (_store.size > 0) return;
-  const file = getLogFilePath();
-  if (fs.existsSync(file)) {
-    const content = fs.readFileSync(file, 'utf-8');
-    const lines = content.split('\n').filter((l) => l.trim().length > 0);
-    for (const line of lines) {
-      try {
-        const record = JSON.parse(line) as RunRecord;
-        _store.set(record.id, record);
-      } catch (e) {
-        console.error('Failed to parse log line', e);
-      }
+export const saveRun = async (record: RunRecord) => {
+  await prisma.run.upsert({
+    where: { id: record.id },
+    create: {
+      id: record.id,
+      url: record.url,
+      timestamp: new Date(record.timestamp),
+      diffText: record.diffText,
+      intentMode: record.intentMode,
+      status: record.status,
+      error: record.error,
+      mobileResult: record.mobileResult as unknown as Prisma.InputJsonValue,
+      desktopResult: record.desktopResult as unknown as Prisma.InputJsonValue
+    },
+    update: {
+      status: record.status,
+      error: record.error,
+      mobileResult: record.mobileResult as unknown as Prisma.InputJsonValue,
+      desktopResult: record.desktopResult as unknown as Prisma.InputJsonValue
     }
-  }
+  });
 };
 
-export const saveRun = (record: RunRecord) => {
-  initStore();
-  _store.set(record.id, record);
-  
-  // Rewrite JSONL (for demo purposes we just append, but to update, we rewrite the whole file for simplicity in this size)
-  const file = getLogFilePath();
-  const allRecords = Array.from(_store.values());
-  const fileContent = allRecords.map((r) => JSON.stringify(r)).join('\n');
-  fs.writeFileSync(file, fileContent, 'utf-8');
+export const getRun = async (id: string): Promise<RunRecord | undefined> => {
+  const result = await prisma.run.findUnique({
+    where: { id }
+  });
+  if (!result) return undefined;
+
+  return {
+    id: result.id,
+    url: result.url,
+    timestamp: result.timestamp.toISOString(),
+    diffText: result.diffText || undefined,
+    intentMode: result.intentMode,
+    status: result.status as RunRecord['status'],
+    error: result.error || undefined,
+    mobileResult: result.mobileResult as unknown as NonNullable<RunRecord['mobileResult']>,
+    desktopResult: result.desktopResult as unknown as NonNullable<RunRecord['desktopResult']>
+  };
 };
 
-export const getRun = (id: string): RunRecord | undefined => {
-  initStore();
-  return _store.get(id);
-};
+export const getAllRuns = async (): Promise<RunRecord[]> => {
+  const results = await prisma.run.findMany({
+    orderBy: { timestamp: 'desc' }
+  });
 
-export const getAllRuns = (): RunRecord[] => {
-  initStore();
-  return Array.from(_store.values()).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  return results.map(result => ({
+    id: result.id,
+    url: result.url,
+    timestamp: result.timestamp.toISOString(),
+    diffText: result.diffText || undefined,
+    intentMode: result.intentMode,
+    status: result.status as RunRecord['status'],
+    error: result.error || undefined,
+    mobileResult: result.mobileResult as unknown as NonNullable<RunRecord['mobileResult']>,
+    desktopResult: result.desktopResult as unknown as NonNullable<RunRecord['desktopResult']>
+  }));
 };
