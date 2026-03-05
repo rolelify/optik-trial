@@ -100,7 +100,7 @@ export async function runPlaywrightExtraction(url: string, runId: string): Promi
   }
 }
 
-export async function checkOcclusion(url: string, viewportName: 'mobile' | 'desktop', bbox: BBox): Promise<boolean> {
+export async function checkOcclusion(url: string, viewportName: 'mobile' | 'desktop'): Promise<boolean> {
   // Silent safety harness
   const browser = await chromium.launch({ headless: true });
   try {
@@ -108,42 +108,33 @@ export async function checkOcclusion(url: string, viewportName: 'mobile' | 'desk
     const page = await context.newPage();
     await page.setViewportSize(VIEWPORTS[viewportName]);
     await page.goto(url, { waitUntil: 'networkidle' });
-    // Force scroll to top to ensure bbox and viewport coords align reliably
+    // Force scroll to top to ensure we check baseline visibility
     await page.evaluate(() => window.scrollTo(0, 0));
     await page.waitForTimeout(500);
 
-    const [x, y, w, h] = bbox;
-    
-    // Check multiple points: center and 4 corners (slightly inset)
-    const points = [
-      { px: x + w / 2, py: y + h / 2 },
-      { px: x + 5, py: y + 5 },
-      { px: x + w - 5, py: y + 5 },
-      { px: x + 5, py: y + h - 5 },
-      { px: x + w - 5, py: y + h - 5 },
-    ];
+    const isOccluded = await page.evaluate(() => {
+      const el = document.querySelector('[data-optikops="primary-cta"]');
+      if (!el) return false;
 
-    const results = await Promise.all(points.map(async ({ px, py }) => {
-      return page.evaluate(({ px, py }) => {
-        // elementFromPoint expects viewport coordinates
-        const scrollX = window.scrollX;
-        const scrollY = window.scrollY;
-        const vpx = px - scrollX;
-        const vpy = py - scrollY;
+      const rect = el.getBoundingClientRect();
+      // Check multiple points: center and 4 corners (slightly inset)
+      const points = [
+        { px: rect.x + rect.width / 2, py: rect.y + rect.height / 2 },
+        { px: rect.x + 5, py: rect.y + 5 },
+        { px: rect.x + rect.width - 5, py: rect.y + 5 },
+        { px: rect.x + 5, py: rect.y + rect.height - 5 },
+        { px: rect.x + rect.width - 5, py: rect.y + rect.height - 5 },
+      ];
 
-        const topEl = document.elementFromPoint(vpx, vpy);
-        if (!topEl) return true; // Offscreen or obscured
-        const cta = document.querySelector('[data-optikops="primary-cta"]');
-        if (!cta) return true;
-
+      return points.some(p => {
+        const topEl = document.elementFromPoint(p.px, p.py);
+        if (!topEl) return true;
         // If top element is the CTA itself or contained within it, it's NOT occluded
-        const isTarget = topEl === cta || cta.contains(topEl);
-        return !isTarget; 
-      }, { px, py });
-    }));
+        return !(topEl === el || el.contains(topEl));
+      });
+    });
 
-    // If ANY point is occluded, we consider the whole element at risk
-    return results.some(r => r === true);
+    return isOccluded;
   } catch {
     return false;
   } finally {

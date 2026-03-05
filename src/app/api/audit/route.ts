@@ -74,8 +74,8 @@ export async function POST(req: NextRequest) {
           console.log(`[${runId}] Target not found, downgrading to warn`);
         } else {
           // Playwright Watchdog Implementation
-          const isOccludedMobile = capture.mobile.primaryBBox ? await checkOcclusion(url, 'mobile', capture.mobile.primaryBBox) : false;
-          const isOccludedDesktop = capture.desktop.primaryBBox ? await checkOcclusion(url, 'desktop', capture.desktop.primaryBBox) : false;
+          const isOccludedMobile = capture.mobile.primaryBBox ? await checkOcclusion(url, 'mobile') : false;
+          const isOccludedDesktop = capture.desktop.primaryBBox ? await checkOcclusion(url, 'desktop') : false;
 
           // Mobile refinement
           if (!mobileRes.pass) {

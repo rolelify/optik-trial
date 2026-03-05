@@ -19,11 +19,6 @@ export function formatPrComment(run: RunRecord): string {
   const issue = result.issue_detected || 'No issues detected.';
   const patch = result.suggested_patch ? `\n\n**Suggested Patch:**\n\`\`\`html\n${result.suggested_patch}\n\`\`\`` : '';
   
-  // To keep it clean, we don't upload the image to github in this demo, just providing a markdown placeholder
-
-
-  return `### OptikOps Verification
-
   return `### OptikOps Verification
 
 ${badge} — Gemini 3 Spatial Verdict (${viewports.join(', ')})
