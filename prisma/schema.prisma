@@ -8,17 +8,15 @@ datasource db {
 }
 
 model Run {
-  id          String   @id @default(uuid())
-  url         String
-  timestamp   DateTime @default(now())
-  diffText    String?
-  intentMode  Boolean  @default(true)
-  status      String   @default("running") // pass, fail, warn, running
-  error       String?
-
+  id            String   @id @default(uuid())
+  url           String
+  timestamp     DateTime @default(now())
+  diffText      String?
+  intentMode    Boolean  @default(true)
+  status        String   @default("running")
+  error         String?
   mobileResult  Json?
   desktopResult Json?
-
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }

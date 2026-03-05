@@ -25,7 +25,7 @@ async function captureViewport(page: Page, url: string, viewportName: 'mobile' |
   // Query elements
   const elements = await page.evaluate(() => {
     const nodes = document.querySelectorAll('[data-optikops]');
-    const results: any[] = [];
+    const results: ExtractedElement[] = [];
     nodes.forEach((node) => {
       const rect = node.getBoundingClientRect();
       const val = node.getAttribute('data-optikops') || '';
@@ -50,22 +50,30 @@ async function captureViewport(page: Page, url: string, viewportName: 'mobile' |
 
   if (primaryTarget && primaryTarget.bbox) {
     primaryBBox = primaryTarget.bbox as BBox;
-    const [x, y, w, h] = primaryBBox;
     
-    // Attempt crop screenshot
-    const clip = {
-      x: Math.max(0, x - 40),
-      y: Math.max(0, y - 40),
-      width: w + 80,
-      height: h + 80
-    };
     try {
-      await page.screenshot({
-        path: path.join(artifactsDir, 'crop-primary-cta.png'),
-        clip
-      });
-    } catch (e) {
-      console.warn('Failed to crop primary CTA', e);
+      // Find the actual element to scroll into view
+      const locator = page.locator('[data-optikops="primary-cta"]').first();
+      await locator.scrollIntoViewIfNeeded();
+      
+      // Get the current position after scrolling
+      const box = await locator.boundingBox();
+      if (box) {
+        const viewport = VIEWPORTS[viewportName];
+        const clip = {
+          x: Math.max(0, box.x - 40),
+          y: Math.max(0, box.y - 40),
+          width: Math.min(viewport.width - Math.max(0, box.x - 40), box.width + 80),
+          height: Math.min(viewport.height - Math.max(0, box.y - 40), box.height + 80)
+        };
+
+        await page.screenshot({
+          path: path.join(artifactsDir, 'crop-primary-cta.png'),
+          clip
+        });
+      }
+    } catch (err) {
+      console.warn('Failed to crop primary CTA', err);
     }
   }
 
@@ -103,19 +111,29 @@ export async function checkOcclusion(url: string, viewportName: 'mobile' | 'desk
     await page.waitForTimeout(1500);
     
     const [x, y, w, h] = bbox;
-    const cx = x + w / 2;
-    const cy = y + h / 2;
+    
+    // Check multiple points: center and 4 corners (slightly inset)
+    const points = [
+      { px: x + w / 2, py: y + h / 2 },
+      { px: x + 5, py: y + 5 },
+      { px: x + w - 5, py: y + 5 },
+      { px: x + 5, py: y + h - 5 },
+      { px: x + w - 5, py: y + h - 5 },
+    ];
 
-    const isOccluded = await page.evaluate(({cx, cy}) => {
-      const topEl = document.elementFromPoint(cx, cy);
-      if (!topEl) return true; // Offscreen or obscured
-      const cta = topEl.closest('[data-optikops="primary-cta"]');
-      return !cta; // If top element is not the CTA or within it, it's occluded by something else
-    }, {cx, cy});
+    const results = await Promise.all(points.map(async ({ px, py }) => {
+      return page.evaluate(({ px, py }) => {
+        const topEl = document.elementFromPoint(px, py);
+        if (!topEl) return true; // Offscreen or obscured
+        const cta = topEl.closest('[data-optikops="primary-cta"]');
+        return !cta; 
+      }, { px, py });
+    }));
 
-    return isOccluded;
-  } catch (e) {
-    return false; // Can't prove occlusion, so return false
+    // If ANY point is occluded, we consider the whole element at risk
+    return results.some(r => r === true);
+  } catch {
+    return false;
   } finally {
     await browser.close();
   }

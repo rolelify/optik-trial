@@ -112,6 +112,22 @@ export default function RunResults({ params }: { params: Promise<{ id: string }>
           ${run.status === 'pass' ? 'bg-green-500' : run.status === 'fail' ? 'bg-red-500' : 'bg-yellow-500'}`} />
       </div>
 
+      {/* Error Alert */}
+      {run.error && (
+        <div className="bg-red-500/10 border border-red-500/30 text-red-200 p-6 rounded-xl flex flex-col gap-3">
+          <div className="flex items-center gap-3">
+            <XCircle className="w-6 h-6 shrink-0 text-red-500" />
+            <h3 className="font-bold text-lg">Backend Error Detected</h3>
+          </div>
+          <pre className="text-xs bg-black/40 p-4 rounded-lg overflow-x-auto border border-white/10 whitespace-pre-wrap">
+            {run.error}
+          </pre>
+          <p className="text-sm text-red-300/80">
+            Check your `.env` file for a valid `GEMINI_API_KEY` (usually starts with AIzaSy) and ensure Playwright browsers are installed locally.
+          </p>
+        </div>
+      )}
+
       {/* Warning Alert if primary CTA is missing */}
       {isWarn && (
         <div className="bg-yellow-500/10 border border-yellow-500/30 text-yellow-200 p-4 rounded-xl flex gap-3 text-sm">
@@ -138,7 +154,7 @@ export default function RunResults({ params }: { params: Promise<{ id: string }>
         </button>
       </div>
 
-      {currentResult ? (
+      {currentResult && (
         <div className="grid md:grid-cols-2 gap-8">
           {/* Left Col: Evidence Data */}
           <div className="space-y-6">
@@ -274,7 +290,8 @@ export default function RunResults({ params }: { params: Promise<{ id: string }>
              </div>
           </div>
         </div>
-      ) : (
+      )}
+      {!currentResult && !run.error && (
         <div className="glass p-12 text-center text-muted-foreground rounded-2xl">
           No data returned for this viewport.
         </div>
