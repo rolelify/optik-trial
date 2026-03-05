@@ -1,17 +1,7 @@
-export type BBox = [number, number, number, number];
-
-export type ExtractedElement = {
-  selector: string;
-  intentValue: string;
-  innerText: string;
-  bbox: BBox | null;
-};
-
 export type ViewportData = {
   viewport: 'mobile' | 'desktop';
   base64Image: string;
-  elements: ExtractedElement[];
-  domSummary: string; // New: minimal DOM context
+  domSummary: string;
 };
 
 export type PlaywrightResult = {

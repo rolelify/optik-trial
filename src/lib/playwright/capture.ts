@@ -18,18 +18,27 @@ export type PlaywrightCaptureResult = {
 };
 
 async function captureViewport(page: Page, url: string, viewportName: 'mobile' | 'desktop', runId: string): Promise<ViewportCapture> {
+  console.log(`[${runId}] [${viewportName}] Setting viewport size...`);
   await page.setViewportSize(VIEWPORTS[viewportName]);
-  await page.goto(url, { waitUntil: 'networkidle' });
-  await page.waitForTimeout(1500); // forced settle
+  
+  console.log(`[${runId}] [${viewportName}] Navigating to ${url}...`);
+  await page.goto(url, { waitUntil: 'load' });
+  
+  console.log(`[${runId}] [${viewportName}] Waiting 500ms...`);
+  await page.waitForTimeout(500); // short settle
 
   const artifactsDir = path.join(process.cwd(), 'public', 'runs', runId, viewportName);
+  console.log(`[${runId}] [${viewportName}] Creating dir ${artifactsDir}...`);
   fs.mkdirSync(artifactsDir, { recursive: true });
 
   const fullPath = path.join(artifactsDir, 'full.png');
+  console.log(`[${runId}] [${viewportName}] Taking screenshot to ${fullPath}...`);
   await page.screenshot({ path: fullPath, fullPage: true });
   
+  console.log(`[${runId}] [${viewportName}] Reading base64...`);
   const base64Image = fs.readFileSync(fullPath, 'base64');
 
+  console.log(`[${runId}] [${viewportName}] Evaluating DOM...`);
   const domSummary = await page.evaluate(() => {
     const summary: string[] = [];
     
@@ -68,6 +77,7 @@ async function captureViewport(page: Page, url: string, viewportName: 'mobile' |
     return summary.join('\\n');
   });
 
+  console.log(`[${runId}] [${viewportName}] Viewport capture complete.`);
   return {
     base64Image,
     domSummary
@@ -75,16 +85,26 @@ async function captureViewport(page: Page, url: string, viewportName: 'mobile' |
 }
 
 export async function runPlaywrightExtraction(url: string, runId: string): Promise<PlaywrightCaptureResult> {
+  console.log(`[${runId}] Launching headless chromium...`);
   const browser = await chromium.launch({ headless: true });
   try {
+    console.log(`[${runId}] Creating new context...`);
     const context = await browser.newContext();
-    const page = await context.newPage();
+    console.log(`[${runId}] Creating mobile page...`);
+    const pageMobile = await context.newPage();
+    console.log(`[${runId}] Creating desktop page...`);
+    const pageDesktop = await context.newPage();
     
-    const mobile = await captureViewport(page, url, 'mobile', runId);
-    const desktop = await captureViewport(page, url, 'desktop', runId);
-
+    console.log(`[${runId}] Starting parallel Promise.all capture...`);
+    const [mobile, desktop] = await Promise.all([
+      captureViewport(pageMobile, url, 'mobile', runId),
+      captureViewport(pageDesktop, url, 'desktop', runId)
+    ]);
+    
+    console.log(`[${runId}] Playwright extraction completely finished.`);
     return { mobile, desktop };
   } finally {
+    console.log(`[${runId}] Closing browser...`);
     await browser.close();
   }
 }

@@ -72,6 +72,7 @@ const responseSchema: Schema = {
 };
 
 export async function runMoatScore(images: { mobile: string, desktop: string }, domSummary: { mobile: string, desktop: string }, diffText?: string): Promise<MoatScoreResult> {
+  console.log('Building MoatScore system and user prompts...');
   const userPrompt = buildMoatScoreUserPrompt({
     pageUrl: 'Preview URL', // Generic passed in, we don't strictly require url here for Gemini to score
     mobileDomSummary: domSummary.mobile,
@@ -110,7 +111,10 @@ export async function runMoatScore(images: { mobile: string, desktop: string }, 
   };
 
   try {
+    console.log(`[Gemini] Sending request to ${GEMINI_MODEL}...`);
+    const start = Date.now();
     const response = await ai.models.generateContent(req);
+    console.log(`[Gemini] Received response in ${Date.now() - start}ms`);
     return JSON.parse(response.text || '{}') as MoatScoreResult;
   } catch (err) {
     console.error('MoatScore Gemini failed, parsing error. Retrying with repair prompt...', err);
@@ -120,7 +124,10 @@ export async function runMoatScore(images: { mobile: string, desktop: string }, 
     retryReq.contents[0].parts.push({ text: JSON_REPAIR_PROMPT });
     
     try {
+      console.log(`[Gemini] Sending RETRY request to ${GEMINI_MODEL}...`);
+      const start = Date.now();
       const response = await ai.models.generateContent(retryReq);
+      console.log(`[Gemini] Received RETRY response in ${Date.now() - start}ms`);
       let resultText = response.text || '{}';
       resultText = resultText.replace(/```json/g, '').replace(/```/g, '');
       return JSON.parse(resultText) as MoatScoreResult;
