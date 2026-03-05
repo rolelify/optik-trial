@@ -1,65 +1,101 @@
 import prisma from './prisma';
-import { RunRecord } from './types';
+import { RunRecord, MoatScoreResult } from './types';
 import { Prisma } from '@prisma/client';
 
-// We map our RunRecord domain type to Prisma interactions
+// In-memory fallback for environments without DB
+const memoryStore = new Map<string, RunRecord>();
 
 export const saveRun = async (record: RunRecord) => {
-  await prisma.run.upsert({
-    where: { id: record.id },
-    create: {
-      id: record.id,
-      url: record.url,
-      timestamp: new Date(record.timestamp),
-      diffText: record.diffText,
-      intentMode: record.intentMode,
-      status: record.status,
-      error: record.error,
-      mobileResult: record.mobileResult as unknown as Prisma.InputJsonValue,
-      desktopResult: record.desktopResult as unknown as Prisma.InputJsonValue
-    },
-    update: {
-      status: record.status,
-      error: record.error,
-      mobileResult: record.mobileResult as unknown as Prisma.InputJsonValue,
-      desktopResult: record.desktopResult as unknown as Prisma.InputJsonValue
-    }
-  });
+  memoryStore.set(record.id, record);
+  
+  try {
+    await prisma.run.upsert({
+      where: { id: record.id },
+      create: {
+        id: record.id,
+        url: record.url,
+        timestamp: new Date(record.timestamp),
+        diffText: record.diffText,
+        intentMode: false, // Legacy field
+        status: record.status,
+        error: record.error,
+        mobileResult: {
+          result: record.result,
+          mobileScreenshot: record.mobileScreenshot,
+          desktopScreenshot: record.desktopScreenshot
+        } as unknown as Prisma.InputJsonValue,
+        desktopResult: {} as Prisma.InputJsonValue
+      },
+      update: {
+        status: record.status,
+        error: record.error,
+        mobileResult: {
+          result: record.result,
+          mobileScreenshot: record.mobileScreenshot,
+          desktopScreenshot: record.desktopScreenshot
+        } as unknown as Prisma.InputJsonValue
+      }
+    });
+  } catch (err) {
+    console.warn('Prisma save failed, using memory store only', err);
+  }
 };
 
 export const getRun = async (id: string): Promise<RunRecord | undefined> => {
-  const result = await prisma.run.findUnique({
-    where: { id }
-  });
-  if (!result) return undefined;
+  if (memoryStore.has(id)) return memoryStore.get(id);
 
-  return {
-    id: result.id,
-    url: result.url,
-    timestamp: result.timestamp.toISOString(),
-    diffText: result.diffText || undefined,
-    intentMode: result.intentMode,
-    status: result.status as RunRecord['status'],
-    error: result.error || undefined,
-    mobileResult: result.mobileResult as unknown as NonNullable<RunRecord['mobileResult']>,
-    desktopResult: result.desktopResult as unknown as NonNullable<RunRecord['desktopResult']>
-  };
+  try {
+    const result = await prisma.run.findUnique({
+      where: { id }
+    });
+    if (!result) return undefined;
+
+    const json = result.mobileResult as { result: MoatScoreResult; mobileScreenshot?: string; desktopScreenshot?: string };
+    return {
+      id: result.id,
+      url: result.url,
+      timestamp: result.timestamp.toISOString(),
+      diffText: result.diffText || undefined,
+      status: result.status as RunRecord['status'],
+      error: result.error || undefined,
+      result: json.result,
+      mobileScreenshot: json.mobileScreenshot,
+      desktopScreenshot: json.desktopScreenshot
+    };
+  } catch {
+    return undefined;
+  }
 };
 
 export const getAllRuns = async (): Promise<RunRecord[]> => {
-  const results = await prisma.run.findMany({
-    orderBy: { timestamp: 'desc' }
-  });
+  const memRuns = Array.from(memoryStore.values());
+  
+  try {
+    const results = await prisma.run.findMany({
+      orderBy: { timestamp: 'desc' },
+      take: 20
+    });
 
-  return results.map(result => ({
-    id: result.id,
-    url: result.url,
-    timestamp: result.timestamp.toISOString(),
-    diffText: result.diffText || undefined,
-    intentMode: result.intentMode,
-    status: result.status as RunRecord['status'],
-    error: result.error || undefined,
-    mobileResult: result.mobileResult as unknown as NonNullable<RunRecord['mobileResult']>,
-    desktopResult: result.desktopResult as unknown as NonNullable<RunRecord['desktopResult']>
-  }));
+    const dbRuns = results.map(result => {
+      const json = result.mobileResult as { result: MoatScoreResult; mobileScreenshot?: string; desktopScreenshot?: string };
+      return {
+        id: result.id,
+        url: result.url,
+        timestamp: result.timestamp.toISOString(),
+        diffText: result.diffText || undefined,
+        status: result.status as RunRecord['status'],
+        error: result.error || undefined,
+        result: json.result as MoatScoreResult,
+        mobileScreenshot: json.mobileScreenshot,
+        desktopScreenshot: json.desktopScreenshot
+      };
+    });
+
+    // Merge and dedupe by ID
+    const all = [...memRuns, ...dbRuns];
+    const unique = Array.from(new Map(all.map(r => [r.id, r])).values());
+    return unique.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  } catch {
+    return memRuns.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  }
 };

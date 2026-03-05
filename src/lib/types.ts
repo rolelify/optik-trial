@@ -11,7 +11,7 @@ export type ViewportData = {
   viewport: 'mobile' | 'desktop';
   base64Image: string;
   elements: ExtractedElement[];
-  primaryBBox: BBox | null;
+  domSummary: string; // New: minimal DOM context
 };
 
 export type PlaywrightResult = {
@@ -19,16 +19,38 @@ export type PlaywrightResult = {
   desktop: ViewportData;
 };
 
-export type GeminiFailureType = 'occluded' | 'offscreen' | 'clipped' | 'unreadable' | 'unknown' | null;
+export type MoatVector = {
+  clear_wedge: number;
+  distribution_hooks: number;
+  workflow_lock_in: number;
+  data_flywheel: number;
+  switching_costs: number;
+  trust_and_risk: number;
+  differentiation: number;
+  monetization_power: number;
+};
 
-export type GeminiVerdict = {
-  pass: boolean;
-  viewport: 'mobile' | 'desktop';
-  intent_target: string | null;
-  failure_type: GeminiFailureType;
-  issue_detected: string | null;
-  evidence: { selector: string; bbox: BBox }[];
-  suggested_patch: string | null;
+export type MoatDeltaItem = {
+  vector: string;
+  reason: string;
+  evidence: string;
+};
+
+export type MoatScoreResult = {
+  overall_score: number;
+  vectors: MoatVector;
+  moat_delta: {
+    strengthened: MoatDeltaItem[];
+    weakened: MoatDeltaItem[];
+  };
+  top_issues: string[];
+  quick_wins: string[];
+  recommended_experiments: {
+    hypothesis: string;
+    change: string;
+    expected_impact: string;
+    effort: "S" | "M" | "L";
+  }[];
   confidence: number;
 };
 
@@ -37,11 +59,9 @@ export type RunRecord = {
   url: string;
   timestamp: string;
   diffText?: string;
-  intentMode: boolean;
   status: 'running' | 'pass' | 'fail' | 'warn';
-  mobileResult?: GeminiVerdict;
-  desktopResult?: GeminiVerdict;
-  mobileBBox?: BBox | null;
-  desktopBBox?: BBox | null;
+  result?: MoatScoreResult;
+  mobileScreenshot?: string; // base64
+  desktopScreenshot?: string; // base64
   error?: string;
 };

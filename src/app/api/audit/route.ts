@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
-import { runPlaywrightExtraction, checkOcclusion } from '@/lib/playwright';
-import { askGemini } from '@/lib/gemini';
+import { runPlaywrightExtraction } from '@/lib/playwright/capture';
+import { runMoatScore } from '@/lib/gemini/client';
 import { saveRun } from '@/lib/store';
-import { RunRecord, GeminiVerdict } from '@/lib/types';
+import { RunRecord, MoatScoreResult } from '@/lib/types';
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { url, diffText, intentMode = true } = body;
+    const { url, diffText } = body;
 
     if (!url) {
       return NextResponse.json({ error: 'URL is required' }, { status: 400 });
@@ -22,29 +22,68 @@ export async function POST(req: NextRequest) {
       url,
       timestamp: new Date().toISOString(),
       diffText,
-      intentMode,
       status: 'running'
     };
     saveRun(record);
 
     // SAFETY HARNESS: Check for local demo mode (only if mock=true is provided)
-    if (url.includes('localhost') && url.includes('/demo') && url.includes('mock=true')) {
-      const isBroken = url.includes('broken=true');
-      const mockVerdict = (viewport: 'mobile' | 'desktop'): GeminiVerdict => ({
-        pass: !isBroken || viewport === 'desktop', // Only fail mobile if broken=true
-        viewport,
-        intent_target: 'primary-cta',
-        failure_type: isBroken && viewport === 'mobile' ? 'occluded' : null,
-        issue_detected: isBroken && viewport === 'mobile' ? 'The primary CTA is occluded by the sticky header on mobile viewports.' : null,
-        evidence: [{ selector: 'button[data-optikops="primary-cta"]', bbox: [40, 100, 310, 50] }],
-        suggested_patch: isBroken ? '.header { position: relative; }' : null,
+    if (url.includes('localhost') && url.includes('/demo') && url.includes('variant=')) {
+      const variant = url.includes('variant=strong') ? 'strong' : 'weak';
+      const mockResult: MoatScoreResult = variant === 'strong' ? {
+        overall_score: 85,
+        vectors: {
+          clear_wedge: 90,
+          distribution_hooks: 70,
+          workflow_lock_in: 80,
+          data_flywheel: 60,
+          switching_costs: 75,
+          trust_and_risk: 95,
+          differentiation: 85,
+          monetization_power: 80
+        },
+        moat_delta: {
+          strengthened: [
+            { vector: 'trust_and_risk', reason: 'SOC2 and compliance badges visible', evidence: 'DOM: Keywords: soc2, security' },
+            { vector: 'clear_wedge', reason: 'Sharp value proposition in H1', evidence: 'DOM: H1: The ultimate wedge.' }
+          ],
+          weakened: []
+        },
+        top_issues: ['Social proof could be stronger'],
+        quick_wins: ['Add G2/Capterra badges'],
+        recommended_experiments: [
+          { hypothesis: 'Adding customer logos will increase trust', change: 'Add "Trusted by" section', expected_impact: 'High', effort: 'S' }
+        ],
         confidence: 1.0
-      });
+      } : {
+        overall_score: 42,
+        vectors: {
+          clear_wedge: 40,
+          distribution_hooks: 30,
+          workflow_lock_in: 20,
+          data_flywheel: 10,
+          switching_costs: 30,
+          trust_and_risk: 40,
+          differentiation: 50,
+          monetization_power: 60
+        },
+        moat_delta: {
+          strengthened: [],
+          weakened: [
+            { vector: 'trust_and_risk', reason: 'No trust signals or compliance mentions', evidence: 'DOM: Keywords: none' },
+            { vector: 'clear_wedge', reason: 'Vague headline', evidence: 'DOM: H1: Generic SaaS Template' }
+          ]
+        },
+        top_issues: ['No clear differentiation', 'Missing trust signals'],
+        quick_wins: ['Add clear pricing', 'Add trust badges'],
+        recommended_experiments: [
+          { hypothesis: 'Clear pricing will improve monetization power', change: 'Add pricing table', expected_impact: 'Medium', effort: 'M' }
+        ],
+        confidence: 0.9
+      };
 
       setTimeout(() => {
-        record.status = isBroken ? 'fail' : 'pass';
-        record.mobileResult = mockVerdict('mobile');
-        record.desktopResult = mockVerdict('desktop');
+        record.status = mockResult.overall_score > 70 ? 'pass' : 'fail';
+        record.result = mockResult;
         saveRun(record);
       }, 1000);
 
@@ -57,62 +96,25 @@ export async function POST(req: NextRequest) {
         console.log(`[${runId}] Starting Playwright capture`);
         const capture = await runPlaywrightExtraction(url, runId);
         
-        console.log(`[${runId}] Requesting Gemini mobile inference`);
-        const mobileRes = await askGemini(capture.mobile, diffText);
-        console.log(`[${runId}] Requesting Gemini desktop inference`);
-        const desktopRes = await askGemini(capture.desktop, diffText);
+        console.log(`[${runId}] Requesting Gemini Moat analysis`);
+        const result = await runMoatScore(
+          { mobile: capture.mobile.base64Image, desktop: capture.desktop.base64Image },
+          { mobile: capture.mobile.domSummary, desktop: capture.desktop.domSummary },
+          diffText
+        );
 
-        record.mobileResult = mobileRes;
-        record.desktopResult = desktopRes;
-        record.mobileBBox = capture.mobile.primaryBBox;
-        record.desktopBBox = capture.desktop.primaryBBox;
+        record.result = result;
+        record.mobileScreenshot = capture.mobile.base64Image;
+        record.desktopScreenshot = capture.desktop.base64Image;
 
-        let finalStatus: 'pass' | 'fail' | 'warn' = 'pass';
-        if (!mobileRes.pass || !desktopRes.pass) finalStatus = 'fail';
-
-        // Check if primary-cta was completely missing
-        if (!capture.mobile.primaryBBox && !capture.desktop.primaryBBox) {
-          finalStatus = 'warn';
-          console.log(`[${runId}] Target not found, downgrading to warn`);
-        } else {
-          // Playwright Watchdog Implementation
-          const isOccludedMobile = capture.mobile.primaryBBox ? await checkOcclusion(url, 'mobile') : false;
-          const isOccludedDesktop = capture.desktop.primaryBBox ? await checkOcclusion(url, 'desktop') : false;
-
-          // Mobile refinement
-          if (!mobileRes.pass) {
-            if (isOccludedMobile) {
-              mobileRes.issue_detected = 'Gemini 3 Spatial Verdict: primary CTA is occluded. Deterministic check confirmed click is blocked.';
-            } else {
-              finalStatus = 'warn';
-              mobileRes.issue_detected = 'Gemini 3 Spatial Verdict: Potential occlusion detected. (Disputed signal: clickability check disagreed; review evidence).';
-            }
-          } else if (isOccludedMobile) {
-            // Gemini says PASS but watchdog says BLOCKED
-            finalStatus = 'warn';
-            mobileRes.issue_detected = 'Disputed signal: deterministic clickability check disagreed with AI pass; review evidence.';
-          }
-
-          // Desktop refinement
-          if (!desktopRes.pass) {
-            if (isOccludedDesktop) {
-              desktopRes.issue_detected = 'Gemini 3 Spatial Verdict: primary CTA is occluded. Deterministic check confirmed click is blocked.';
-            } else {
-              finalStatus = 'warn';
-              desktopRes.issue_detected = 'Gemini 3 Spatial Verdict: Potential occlusion detected. (Disputed signal: clickability check disagreed).';
-            }
-          } else if (isOccludedDesktop) {
-            finalStatus = 'warn';
-            desktopRes.issue_detected = 'Disputed signal: deterministic clickability check disagreed; review evidence.';
-          }
-        }
-
-        record.status = finalStatus;
+        // Determine status based on overall score (threshold: 70)
+        record.status = result.overall_score >= 70 ? 'pass' : 'fail';
+        
         saveRun(record);
-        console.log(`[${runId}] Finished with status: ${finalStatus}`);
+        console.log(`[${runId}] Finished with status: ${record.status}`);
 
-      } catch {
-        console.error(`[${runId}] Async execution failed`);
+      } catch (err) {
+        console.error(`[${runId}] Async execution failed`, err);
         record.status = 'warn';
         record.error = 'Async execution failed during extraction or inference';
         saveRun(record);
@@ -121,7 +123,8 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ runId });
 
-  } catch {
+  } catch (err) {
+    console.error('Audit route failed', err);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

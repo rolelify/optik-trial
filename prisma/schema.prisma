@@ -12,7 +12,6 @@ model Run {
   url           String
   timestamp     DateTime @default(now())
   diffText      String?
-  intentMode    Boolean  @default(true)
   status        String   @default("running")
   error         String?
   mobileResult  Json?
