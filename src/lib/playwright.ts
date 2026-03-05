@@ -101,15 +101,22 @@ export async function runPlaywrightExtraction(url: string, runId: string): Promi
 }
 
 export async function checkOcclusion(url: string, viewportName: 'mobile' | 'desktop'): Promise<boolean> {
-  // Silent safety harness
-  const browser = await chromium.launch({ headless: true });
+      const browser = await chromium.launch({ headless: true });
   try {
     const context = await browser.newContext();
     const page = await context.newPage();
     await page.setViewportSize(VIEWPORTS[viewportName]);
     await page.goto(url, { waitUntil: 'networkidle' });
-    // Force scroll to top to ensure we check baseline visibility
-    await page.evaluate(() => window.scrollTo(0, 0));
+    
+    // First, scroll the element cleanly into the center of the viewport
+    await page.evaluate(() => {
+      const el = document.querySelector('[data-optikops="primary-cta"]');
+      if (el) {
+        el.scrollIntoView({ block: 'center', inline: 'center' });
+      }
+    });
+
+    // Wait for scroll and any stickies to settle
     await page.waitForTimeout(500);
 
     const isOccluded = await page.evaluate(() => {
@@ -117,6 +124,12 @@ export async function checkOcclusion(url: string, viewportName: 'mobile' | 'desk
       if (!el) return false;
 
       const rect = el.getBoundingClientRect();
+      
+      // If rect is totally outside the viewport bounds, elementFromPoint breaks
+      if (rect.y < 0 || rect.y > window.innerHeight || rect.x < 0 || rect.x > window.innerWidth) {
+        return true; // Technically offscreen/occluded by viewport edges
+      }
+
       // Check multiple points: center and 4 corners (slightly inset)
       const points = [
         { px: rect.x + rect.width / 2, py: rect.y + rect.height / 2 },
@@ -129,6 +142,7 @@ export async function checkOcclusion(url: string, viewportName: 'mobile' | 'desk
       return points.some(p => {
         const topEl = document.elementFromPoint(p.px, p.py);
         if (!topEl) return true;
+        
         // If top element is the CTA itself or contained within it, it's NOT occluded
         return !(topEl === el || el.contains(topEl));
       });
@@ -141,3 +155,4 @@ export async function checkOcclusion(url: string, viewportName: 'mobile' | 'desk
     await browser.close();
   }
 }
+
