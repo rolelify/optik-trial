@@ -41,5 +41,7 @@ export type RunRecord = {
   status: 'running' | 'pass' | 'fail' | 'warn';
   mobileResult?: GeminiVerdict;
   desktopResult?: GeminiVerdict;
+  mobileBBox?: BBox | null;
+  desktopBBox?: BBox | null;
   error?: string;
 };

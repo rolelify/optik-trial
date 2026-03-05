@@ -44,17 +44,18 @@ All detected intent elements:
 ${elementsMarkdown}
 
 Your job is to determine if the primary CTA is occluded, cut off, offscreen, or unclickable.
-Look closely at the screenshot. Does a sticky header (like a banner that says "Warning..."), modal, or footer overlap the button area? 
-Even if the button is partially visible, if it is covered by a translucent or solid element that isn't its own parent, set pass=false.
-If the primary BBox is null, it means it wasn't rendered.
+
+STRICT GUARDRAILS:
+1. If the CTA bbox center is blocked/covered OR CTA is not fully visible => pass=false
+2. If ANY part of the button is covered by an overlay, sticky header, modal, or footer => pass=false
+3. If uncertain or cannot clearly confirm the button is fully interactable => pass=false, failure_type="unknown", confidence=0.3
+4. If the primary BBox is null, it means it wasn't rendered => pass=false
+5. Only return pass=true if you are 100% confident the element is fully visible and clickable.
 
 Review the diff (if any) to see if recent changes caused the issue.
 Diff:
 ${diffText ? diffText.substring(0, 2000) : 'None'}
 
-Guardrails: 
-- If ANY part of the button is covered by an overlay, it is a FAIL.
-- Do not hallucinate. If unsure, set failure_type="unknown" and pass=true with low confidence.
 Return STRICT JSON ONLY matching the provided schema.`;
 
   const req = {
@@ -76,7 +77,7 @@ Return STRICT JSON ONLY matching the provided schema.`;
     config: {
       responseMimeType: 'application/json',
       responseSchema,
-      temperature: 0.1,
+      temperature: 0,
     }
   };
 

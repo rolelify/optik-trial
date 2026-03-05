@@ -64,6 +64,8 @@ export async function POST(req: NextRequest) {
 
         record.mobileResult = mobileRes;
         record.desktopResult = desktopRes;
+        record.mobileBBox = capture.mobile.primaryBBox;
+        record.desktopBBox = capture.desktop.primaryBBox;
 
         let finalStatus: 'pass' | 'fail' | 'warn' = 'pass';
         if (!mobileRes.pass || !desktopRes.pass) finalStatus = 'fail';

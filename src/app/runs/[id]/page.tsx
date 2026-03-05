@@ -215,19 +215,33 @@ export default function RunResults({ params }: { params: Promise<{ id: string }>
               </pre>
             </div>
 
-            <div className="glass rounded-xl overflow-hidden">
+            {/* Debug Panel */}
+            <div className="glass rounded-xl overflow-hidden border border-brand-500/20">
               <button 
                 onClick={() => setShowJson(!showJson)}
-                className="w-full flex items-center justify-between p-4 bg-white/5 hover:bg-white/10 transition-colors text-sm font-medium"
+                className="w-full flex items-center justify-between p-4 bg-white/5 hover:bg-white/10 transition-colors text-sm font-bold text-brand-400"
               >
-                Raw Gemini Logic
+                Diagnostics & Debug Panel
                 {showJson ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
               </button>
               {showJson && (
-                <div className="p-4 bg-black/90 border-t border-white/10">
-                  <pre className="text-xs text-brand-300 overflow-x-auto">
-                    {JSON.stringify(currentResult, null, 2)}
-                  </pre>
+                <div className="p-4 bg-black/90 border-t border-brand-500/20 text-xs space-y-4">
+                  <div className="grid grid-cols-2 gap-4 text-brand-300">
+                    <div>
+                      <span className="block text-white/50 mb-1">primary-cta Found</span>
+                      <span className="font-mono">{run[activeTab === 'mobile' ? 'mobileBBox' : 'desktopBBox'] ? 'TRUE' : 'FALSE'}</span>
+                    </div>
+                    <div>
+                      <span className="block text-white/50 mb-1">BBox Coordinates Sent</span>
+                      <span className="font-mono">{JSON.stringify(run[activeTab === 'mobile' ? 'mobileBBox' : 'desktopBBox'] || null)}</span>
+                    </div>
+                  </div>
+                  <div>
+                    <span className="block text-white/50 mb-2">Raw Gemini JSON Response</span>
+                    <pre className="text-brand-300 overflow-x-auto bg-black/50 p-3 rounded border border-white/5">
+                      {JSON.stringify(currentResult, null, 2)}
+                    </pre>
+                  </div>
                 </div>
               )}
             </div>
