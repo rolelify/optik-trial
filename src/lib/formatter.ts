@@ -24,6 +24,8 @@ export function formatPrComment(run: RunRecord): string {
 
   return `### OptikOps Verification
 
+  return `### OptikOps Verification
+
 ${badge} — Gemini 3 Spatial Verdict (${viewports.join(', ')})
 **Issue:** ${issue}
 **Confidence:** ${result.confidence >= 0.9 ? 'High' : 'Medium'} (verified by deterministic clickability check).

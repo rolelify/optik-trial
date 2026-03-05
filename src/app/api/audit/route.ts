@@ -77,33 +77,31 @@ export async function POST(req: NextRequest) {
           const isOccludedMobile = capture.mobile.primaryBBox ? await checkOcclusion(url, 'mobile', capture.mobile.primaryBBox) : false;
           const isOccludedDesktop = capture.desktop.primaryBBox ? await checkOcclusion(url, 'desktop', capture.desktop.primaryBBox) : false;
 
-          // CASE 1: Gemini found it (FAILED)
-          if (!mobileRes.pass && isOccludedMobile) {
-            mobileRes.issue_detected = 'Gemini 3 Spatial Verdict: primary CTA is occluded. Deterministic check confirmed click is blocked.';
-          } else if (!mobileRes.pass && !isOccludedMobile) {
-            // Gemini flagged it but deterministic check disagreed -> WARN
+          // Mobile refinement
+          if (!mobileRes.pass) {
+            if (isOccludedMobile) {
+              mobileRes.issue_detected = 'Gemini 3 Spatial Verdict: primary CTA is occluded. Deterministic check confirmed click is blocked.';
+            } else {
+              finalStatus = 'warn';
+              mobileRes.issue_detected = 'Gemini 3 Spatial Verdict: Potential occlusion detected. (Disputed signal: clickability check disagreed; review evidence).';
+            }
+          } else if (isOccludedMobile) {
+            // Gemini says PASS but watchdog says BLOCKED
             finalStatus = 'warn';
-            mobileRes.issue_detected = 'Gemini 3 Spatial Verdict: Potential occlusion detected (Manual review suggested: Deterministic check disagreed with AI prediction).';
+            mobileRes.issue_detected = 'Disputed signal: deterministic clickability check disagreed with AI pass; review evidence.';
           }
 
-          if (!desktopRes.pass && isOccludedDesktop) {
-            desktopRes.issue_detected = 'Gemini 3 Spatial Verdict: primary CTA is occluded. Deterministic check confirmed click is blocked.';
-          } else if (!desktopRes.pass && !isOccludedDesktop) {
+          // Desktop refinement
+          if (!desktopRes.pass) {
+            if (isOccludedDesktop) {
+              desktopRes.issue_detected = 'Gemini 3 Spatial Verdict: primary CTA is occluded. Deterministic check confirmed click is blocked.';
+            } else {
+              finalStatus = 'warn';
+              desktopRes.issue_detected = 'Gemini 3 Spatial Verdict: Potential occlusion detected. (Disputed signal: clickability check disagreed).';
+            }
+          } else if (isOccludedDesktop) {
             finalStatus = 'warn';
-            desktopRes.issue_detected = 'Gemini 3 Spatial Verdict: Potential occlusion detected (Manual review suggested).';
-          }
-
-          // CASE 2: Watchdog override (AI missed it)
-          if (mobileRes.pass && isOccludedMobile) {
-            console.log(`[${runId}] Watchdog flagged mobile occlusion AI missed`);
-            // Label as WARN ("Disputed") per user request
-            finalStatus = 'warn'; 
-            mobileRes.issue_detected = 'Watchdog override (Gemini missed): Deterministic check found blocking element.';
-          }
-          if (desktopRes.pass && isOccludedDesktop) {
-            console.log(`[${runId}] Watchdog flagged desktop occlusion AI missed`);
-            finalStatus = 'warn';
-            desktopRes.issue_detected = 'Watchdog override (Gemini missed): Deterministic check found blocking element.';
+            desktopRes.issue_detected = 'Disputed signal: deterministic clickability check disagreed; review evidence.';
           }
         }
 

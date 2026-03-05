@@ -108,8 +108,10 @@ export async function checkOcclusion(url: string, viewportName: 'mobile' | 'desk
     const page = await context.newPage();
     await page.setViewportSize(VIEWPORTS[viewportName]);
     await page.goto(url, { waitUntil: 'networkidle' });
-    await page.waitForTimeout(1500);
-    
+    // Force scroll to top to ensure bbox and viewport coords align reliably
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.waitForTimeout(500);
+
     const [x, y, w, h] = bbox;
     
     // Check multiple points: center and 4 corners (slightly inset)
@@ -123,10 +125,20 @@ export async function checkOcclusion(url: string, viewportName: 'mobile' | 'desk
 
     const results = await Promise.all(points.map(async ({ px, py }) => {
       return page.evaluate(({ px, py }) => {
-        const topEl = document.elementFromPoint(px, py);
+        // elementFromPoint expects viewport coordinates
+        const scrollX = window.scrollX;
+        const scrollY = window.scrollY;
+        const vpx = px - scrollX;
+        const vpy = py - scrollY;
+
+        const topEl = document.elementFromPoint(vpx, vpy);
         if (!topEl) return true; // Offscreen or obscured
-        const cta = topEl.closest('[data-optikops="primary-cta"]');
-        return !cta; 
+        const cta = document.querySelector('[data-optikops="primary-cta"]');
+        if (!cta) return true;
+
+        // If top element is the CTA itself or contained within it, it's NOT occluded
+        const isTarget = topEl === cta || cta.contains(topEl);
+        return !isTarget; 
       }, { px, py });
     }));
 

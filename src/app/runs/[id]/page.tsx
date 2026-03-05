@@ -135,12 +135,12 @@ export default function RunResults({ params }: { params: Promise<{ id: string }>
         </div>
       )}
 
-      {/* Warning Alert if primary CTA is missing */}
+      {/* Warning/Dispute Alert */}
       {isWarn && (
         <div className="bg-yellow-500/10 border border-yellow-500/30 text-yellow-200 p-4 rounded-xl flex gap-3 text-sm">
           <AlertTriangle className="w-5 h-5 shrink-0" />
           <p>
-            <strong>Warning:</strong> OptikOps downgraded the failure to WARN. Either the `primary-cta` was completely missing from the DOM, or the deterministic occlusion check disagreed with the AI prediction. Please review the evidence manually.
+            <strong>Disputed Signal:</strong> The deterministic clickability check disagreed with the AI prediction. Please review the visual evidence.
           </p>
         </div>
       )}
