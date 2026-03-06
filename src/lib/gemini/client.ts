@@ -71,7 +71,7 @@ const responseSchema: Schema = {
 };
 
 export async function runMoatScore(images: { mobile: string, desktop: string }, domSummary: { mobile: string, desktop: string }, diffText?: string): Promise<MoatScoreResult> {
-  const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash-001';
+  const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3-flash-preview';
   console.log('Building MoatScore system and user prompts...');
   const userPrompt = buildMoatScoreUserPrompt({
     pageUrl: 'Preview URL',
