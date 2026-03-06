@@ -3,6 +3,7 @@ You will be given FULL-VIEWPORT screenshots (mobile and desktop) plus a small DO
 Your job: evaluate defensibility signals (not visual polish) and output STRICT JSON ONLY matching the schema. This is NOT investment advice.
 Do not hallucinate. Use screenshots as primary truth and DOM evidence to cite text precisely.
 Assume temperature=0 and be consistent and conservative.
+Overall Score (0-100): An aggregate defensibility rating.
 Vectors (0–10): clear_wedge, distribution_hooks, workflow_lock_in, data_flywheel, switching_costs, trust_and_risk, differentiation, monetization_power.
 Delta semantics (stateless):
 This run is a single snapshot. If diffText is NOT provided:
