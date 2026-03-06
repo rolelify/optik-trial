@@ -22,10 +22,17 @@ async function captureViewport(page: Page, url: string, viewportName: 'mobile' |
   await page.setViewportSize(VIEWPORTS[viewportName]);
   
   console.log(`[${runId}] [${viewportName}] Navigating to ${url}...`);
-  await page.goto(url, { waitUntil: 'load' });
+  page.setDefaultNavigationTimeout(20000);
+  page.setDefaultTimeout(20000);
+
+  try {
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
+  } catch (e) {
+    console.error(`[${runId}] [${viewportName}] Navigation timeout/error, taking screenshot of whatever rendered...`, e);
+  }
   
-  console.log(`[${runId}] [${viewportName}] Waiting 500ms...`);
-  await page.waitForTimeout(500); // short settle
+  console.log(`[${runId}] [${viewportName}] Waiting 800ms to settle...`);
+  await page.waitForTimeout(800); // short settle for hydration
 
   const artifactsDir = path.join(process.cwd(), 'public', 'runs', runId, viewportName);
   console.log(`[${runId}] [${viewportName}] Creating dir ${artifactsDir}...`);

@@ -61,11 +61,18 @@ async function DemoContent({
                 {isStrong ? 'Start Enterprise Trial' : 'Get Started'}
               </button>
               {isStrong && (
-                <button className="bg-white/5 border border-white/10 px-8 py-4 rounded-xl font-bold text-lg hover:bg-white/10 transition-all">
-                  Book Architecture Review
+                <button className="bg-white/5 border border-white/10 px-8 py-4 rounded-xl font-bold text-lg hover:bg-white/10 transition-all text-left">
+                  <div className="text-sm opacity-50 font-medium">Starting at</div>
+                  <div>$49 / seat / month</div>
                 </button>
               )}
             </div>
+
+            {isStrong && (
+              <div className="flex items-center gap-2 text-brand-400 font-bold mb-4">
+                <Globe className="w-5 h-5" /> Invite your team in seconds
+              </div>
+            )}
 
             {isStrong && (
               <div className="pt-8 border-t border-white/5 space-y-4">

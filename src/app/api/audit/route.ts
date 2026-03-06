@@ -5,7 +5,16 @@ import { runMoatScore } from '@/lib/gemini/client';
 import { saveRun } from '@/lib/store';
 import { RunRecord, MoatScoreResult } from '@/lib/types';
 
+function normalizeOverallScore(score: number) {
+  let s = score;
+  if (s <= 10) s = s * 10;
+  if (s < 0) s = 0;
+  if (s > 100) s = 100;
+  return Math.round(s);
+}
+
 export const maxDuration = 300; // allow extending Vercel timeout up to 5 mins
+export const runtime = 'nodejs';
 
 export async function POST(req: NextRequest) {
   try {
@@ -39,12 +48,14 @@ export async function POST(req: NextRequest) {
         diffText
       );
 
+      result.overall_score = normalizeOverallScore(result.overall_score);
+
       record.result = result;
       record.mobileScreenshot = capture.mobile.base64Image;
       record.desktopScreenshot = capture.desktop.base64Image;
 
-      // Determine status based on overall score (threshold: 70)
-      record.status = result.overall_score >= 70 ? 'pass' : 'fail';
+      // Determine status based on overall score (threshold: 60)
+      record.status = result.overall_score >= 60 ? 'pass' : 'fail';
       
       saveRun(record);
       console.log(`[${runId}] Finished with status: ${record.status}`);
