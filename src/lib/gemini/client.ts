@@ -3,7 +3,6 @@ import { MOATSCORE_SYSTEM_PROMPT, buildMoatScoreUserPrompt, JSON_REPAIR_PROMPT }
 import { MoatScoreResult } from '../types';
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3-flash-preview';
 
 const responseSchema: Schema = {
   type: Type.OBJECT,
@@ -72,9 +71,10 @@ const responseSchema: Schema = {
 };
 
 export async function runMoatScore(images: { mobile: string, desktop: string }, domSummary: { mobile: string, desktop: string }, diffText?: string): Promise<MoatScoreResult> {
+  const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
   console.log('Building MoatScore system and user prompts...');
   const userPrompt = buildMoatScoreUserPrompt({
-    pageUrl: 'Preview URL', // Generic passed in, we don't strictly require url here for Gemini to score
+    pageUrl: 'Preview URL',
     mobileDomSummary: domSummary.mobile,
     desktopDomSummary: domSummary.desktop,
     diffText
@@ -84,19 +84,19 @@ export async function runMoatScore(images: { mobile: string, desktop: string }, 
     model: GEMINI_MODEL,
     contents: [
       {
-        role: 'user',
+        role: 'user' as const,
         parts: [
           { text: MOATSCORE_SYSTEM_PROMPT },
           { text: userPrompt },
           {
             inlineData: {
-              mimeType: 'image/png',
+              mimeType: 'image/jpeg' as const,
               data: images.mobile,
             }
           },
           {
             inlineData: {
-              mimeType: 'image/png',
+              mimeType: 'image/jpeg' as const,
               data: images.desktop,
             }
           }
@@ -104,9 +104,12 @@ export async function runMoatScore(images: { mobile: string, desktop: string }, 
       }
     ],
     config: {
-      responseMimeType: 'application/json',
+      responseMimeType: 'application/json' as const,
       responseSchema,
       temperature: 0,
+      thinkingConfig: {
+        thinkingBudget: 0,
+      },
     }
   };
 

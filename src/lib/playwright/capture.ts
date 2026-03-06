@@ -31,12 +31,17 @@ async function captureViewport(page: Page, url: string, viewportName: 'mobile' |
   console.log(`[${runId}] [${viewportName}] Creating dir ${artifactsDir}...`);
   fs.mkdirSync(artifactsDir, { recursive: true });
 
+  // Save full-page PNG for the UI report
   const fullPath = path.join(artifactsDir, 'full.png');
-  console.log(`[${runId}] [${viewportName}] Taking screenshot to ${fullPath}...`);
+  console.log(`[${runId}] [${viewportName}] Taking full screenshot...`);
   await page.screenshot({ path: fullPath, fullPage: true });
+
+  // Take a small viewport-only JPEG for Gemini (much smaller payload)
+  console.log(`[${runId}] [${viewportName}] Taking viewport JPEG for AI...`);
+  const screenshotBuffer = await page.screenshot({ fullPage: false, type: 'jpeg', quality: 70 });
+  const base64Image = screenshotBuffer.toString('base64');
   
-  console.log(`[${runId}] [${viewportName}] Reading base64...`);
-  const base64Image = fs.readFileSync(fullPath, 'base64');
+  console.log(`[${runId}] [${viewportName}] AI image size: ${Math.round(base64Image.length / 1024)}KB base64`);
 
   console.log(`[${runId}] [${viewportName}] Evaluating DOM...`);
   const domSummary = await page.evaluate(() => {

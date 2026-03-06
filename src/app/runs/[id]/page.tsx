@@ -243,7 +243,7 @@ export default function RunResults({ params }: { params: Promise<{ id: string }>
             <h4 className="text-xs font-bold uppercase tracking-widest text-muted-foreground text-center">Mobile Viewport</h4>
             <div className="bg-black rounded-lg overflow-hidden border border-white/10">
               <img 
-                src={run.mobileScreenshot ? `data:image/png;base64,${run.mobileScreenshot}` : `/runs/${run.id}/mobile/full.png`} 
+                src={run.mobileScreenshot ? `data:image/jpeg;base64,${run.mobileScreenshot}` : `/runs/${run.id}/mobile/full.png`} 
                 alt="Mobile UI" 
                 className="w-full h-auto" 
               />
@@ -253,7 +253,7 @@ export default function RunResults({ params }: { params: Promise<{ id: string }>
             <h4 className="text-xs font-bold uppercase tracking-widest text-muted-foreground text-center">Desktop Viewport</h4>
             <div className="bg-black rounded-lg overflow-hidden border border-white/10">
               <img 
-                src={run.desktopScreenshot ? `data:image/png;base64,${run.desktopScreenshot}` : `/runs/${run.id}/desktop/full.png`} 
+                src={run.desktopScreenshot ? `data:image/jpeg;base64,${run.desktopScreenshot}` : `/runs/${run.id}/desktop/full.png`} 
                 alt="Desktop UI" 
                 className="w-full h-auto" 
               />
